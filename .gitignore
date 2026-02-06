@@ -1,0 +1,24 @@
+# Build artifacts
+/build/
+/cmake-build-*/
+
+# Local cache
+/.cache/
+
+# Editor/IDE
+/.idea/
+/.vscode/
+
+# Tooling outputs
+/compile_commands.json
+
+# Binaries/objects (in case someone builds in-source)
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+
