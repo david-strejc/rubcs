@@ -15,5 +15,5 @@
 - [x] Implement Kociemba two-phase solver (move/prune tables + phase1/phase2 search).
 - [x] Update/extend solver tests for Kociemba (solve 20-move scramble, <=31 moves).
 - [x] Polish Solve UI text for table-building stage (avoid showing negative depth).
-- [ ] Create public GitHub repository and push code (`gh repo create ... --public --push`).
+- [x] Create public GitHub repository and push code (`gh repo create ... --public --push`).
 - [ ] Verify manually (rotate all faces, repeated sequences) and update docs if needed.
