@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <cstddef>
 
 // Facelet indices: face * 9 + position
 // Position layout per face:
@@ -73,110 +74,157 @@ void Cube::reset() {
             state_[f * 9 + i] = kFaceColor[f];
         }
     }
+    history_.clear();
 }
 
-void Cube::rotateFaceCW(int face) {
-    auto& s = state_;
-    int b = face * 9;
-    // Rotate the face itself clockwise
-    Color tmp = s[b + 0];
-    s[b + 0] = s[b + 6]; s[b + 6] = s[b + 8]; s[b + 8] = s[b + 2]; s[b + 2] = tmp;
-    tmp = s[b + 1];
-    s[b + 1] = s[b + 3]; s[b + 3] = s[b + 7]; s[b + 7] = s[b + 5]; s[b + 5] = tmp;
+void Cube::setState(const std::array<Color, 54>& s) {
+    state_ = s;
+    history_.clear();
 }
 
-void Cube::rotateFaceCCW(int face) {
-    rotateFaceCW(face);
-    rotateFaceCW(face);
-    rotateFaceCW(face);
+std::vector<Move> Cube::rewindSolution() const {
+    std::vector<Move> out;
+    out.reserve(history_.size());
+    for (auto it = history_.rbegin(); it != history_.rend(); ++it) {
+        out.push_back(inverseMove(*it));
+    }
+    return out;
 }
 
-void Cube::cycle4(int a, int b, int c, int d) {
-    Color tmp = state_[d];
-    state_[d] = state_[c];
-    state_[c] = state_[b];
-    state_[b] = state_[a];
-    state_[a] = tmp;
+void Cube::remember(Move m) {
+    int move = static_cast<int>(m);
+    if (move < 0 || move >= static_cast<int>(Move::COUNT)) return;
+
+    auto faceOf = [](Move x) { return static_cast<int>(x) / 3; };
+    auto turns = [](Move x) {
+        int t = static_cast<int>(x) % 3;
+        return t == 0 ? 1 : (t == 1 ? 3 : 2);
+    };
+    auto fromTurns = [](int face, int turns) {
+        int type = turns == 1 ? 0 : (turns == 3 ? 1 : 2);
+        return static_cast<Move>(face * 3 + type);
+    };
+    auto commute = [](int a, int b) {
+        return a != b && a / 2 == b / 2;
+    };
+
+    int face = faceOf(m);
+    auto pos = history_.size();
+    while (pos > 0 && commute(faceOf(history_[pos - 1]), face)) {
+        pos--;
+    }
+
+    if (pos > 0 && faceOf(history_[pos - 1]) == face) {
+        int merged = (turns(history_[pos - 1]) + turns(m)) & 3;
+        if (merged == 0) history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(pos - 1));
+        else history_[pos - 1] = fromTurns(face, merged);
+        return;
+    }
+    history_.insert(history_.begin() + static_cast<std::ptrdiff_t>(pos), m);
 }
 
 void Cube::applyMove(Move m) {
-    auto& s = state_;
-    switch (m) {
-    case Move::U:
-        rotateFaceCW(FACE_U);
-        cycle4(I(FACE_F,0), I(FACE_L,0), I(FACE_B,0), I(FACE_R,0));
-        cycle4(I(FACE_F,1), I(FACE_L,1), I(FACE_B,1), I(FACE_R,1));
-        cycle4(I(FACE_F,2), I(FACE_L,2), I(FACE_B,2), I(FACE_R,2));
-        break;
-    case Move::Up:
-        applyMove(Move::U); applyMove(Move::U); applyMove(Move::U);
-        break;
-    case Move::U2:
-        applyMove(Move::U); applyMove(Move::U);
-        break;
-    case Move::D:
-        rotateFaceCW(FACE_D);
-        cycle4(I(FACE_F,6), I(FACE_R,6), I(FACE_B,6), I(FACE_L,6));
-        cycle4(I(FACE_F,7), I(FACE_R,7), I(FACE_B,7), I(FACE_L,7));
-        cycle4(I(FACE_F,8), I(FACE_R,8), I(FACE_B,8), I(FACE_L,8));
-        break;
-    case Move::Dp:
-        applyMove(Move::D); applyMove(Move::D); applyMove(Move::D);
-        break;
-    case Move::D2:
-        applyMove(Move::D); applyMove(Move::D);
-        break;
-    case Move::L:
-        rotateFaceCW(FACE_L);
-        cycle4(I(FACE_U,0), I(FACE_F,0), I(FACE_D,0), I(FACE_B,8));
-        cycle4(I(FACE_U,3), I(FACE_F,3), I(FACE_D,3), I(FACE_B,5));
-        cycle4(I(FACE_U,6), I(FACE_F,6), I(FACE_D,6), I(FACE_B,2));
-        break;
-    case Move::Lp:
-        applyMove(Move::L); applyMove(Move::L); applyMove(Move::L);
-        break;
-    case Move::L2:
-        applyMove(Move::L); applyMove(Move::L);
-        break;
-    case Move::R:
-        rotateFaceCW(FACE_R);
-        cycle4(I(FACE_U,2), I(FACE_B,6), I(FACE_D,2), I(FACE_F,2));
-        cycle4(I(FACE_U,5), I(FACE_B,3), I(FACE_D,5), I(FACE_F,5));
-        cycle4(I(FACE_U,8), I(FACE_B,0), I(FACE_D,8), I(FACE_F,8));
-        break;
-    case Move::Rp:
-        applyMove(Move::R); applyMove(Move::R); applyMove(Move::R);
-        break;
-    case Move::R2:
-        applyMove(Move::R); applyMove(Move::R);
-        break;
-    case Move::F:
-        rotateFaceCW(FACE_F);
-        cycle4(I(FACE_U,6), I(FACE_R,0), I(FACE_D,2), I(FACE_L,8));
-        cycle4(I(FACE_U,7), I(FACE_R,3), I(FACE_D,1), I(FACE_L,5));
-        cycle4(I(FACE_U,8), I(FACE_R,6), I(FACE_D,0), I(FACE_L,2));
-        break;
-    case Move::Fp:
-        applyMove(Move::F); applyMove(Move::F); applyMove(Move::F);
-        break;
-    case Move::F2:
-        applyMove(Move::F); applyMove(Move::F);
-        break;
-    case Move::B:
-        rotateFaceCW(FACE_B);
-        cycle4(I(FACE_U,2), I(FACE_L,0), I(FACE_D,6), I(FACE_R,8));
-        cycle4(I(FACE_U,1), I(FACE_L,3), I(FACE_D,7), I(FACE_R,5));
-        cycle4(I(FACE_U,0), I(FACE_L,6), I(FACE_D,8), I(FACE_R,2));
-        break;
-    case Move::Bp:
-        applyMove(Move::B); applyMove(Move::B); applyMove(Move::B);
-        break;
-    case Move::B2:
-        applyMove(Move::B); applyMove(Move::B);
-        break;
-    default:
-        break;
+    applyMoveRaw(m);
+    remember(m);
+}
+
+namespace {
+struct Vec3i {
+    int x = 0;
+    int y = 0;
+    int z = 0;
+};
+
+struct Sticker {
+    Vec3i pos;
+    int dir = FACE_U;
+};
+
+static Vec3i dirVec(int dir) {
+    static constexpr Vec3i v[6] = {
+        {0, 1, 0}, {0, -1, 0}, {-1, 0, 0}, {1, 0, 0}, {0, 0, 1}, {0, 0, -1}
+    };
+    return v[dir];
+}
+
+static int vecDir(const Vec3i& v) {
+    if (v.y == 1) return FACE_U;
+    if (v.y == -1) return FACE_D;
+    if (v.x == -1) return FACE_L;
+    if (v.x == 1) return FACE_R;
+    if (v.z == 1) return FACE_F;
+    return FACE_B;
+}
+
+static Vec3i rot90(Vec3i v, int axis, int sign) {
+    if (axis == 0) return sign > 0 ? Vec3i{v.x, -v.z, v.y} : Vec3i{v.x, v.z, -v.y};
+    if (axis == 1) return sign > 0 ? Vec3i{v.z, v.y, -v.x} : Vec3i{-v.z, v.y, v.x};
+    return sign > 0 ? Vec3i{-v.y, v.x, v.z} : Vec3i{v.y, -v.x, v.z};
+}
+
+static Sticker stickerAt(int index) {
+    int face = index / 9;
+    int pos = index % 9;
+    int row = pos / 3;
+    int col = pos % 3;
+    Sticker s;
+    s.dir = face;
+    if (face == FACE_U) s.pos = {col - 1, 1, row - 1};
+    else if (face == FACE_D) s.pos = {col - 1, -1, 1 - row};
+    else if (face == FACE_L) s.pos = {-1, 1 - row, col - 1};
+    else if (face == FACE_R) s.pos = {1, 1 - row, 1 - col};
+    else if (face == FACE_F) s.pos = {col - 1, 1 - row, 1};
+    else s.pos = {1 - col, 1 - row, -1};
+    return s;
+}
+
+static int stickerIndex(const Sticker& s) {
+    int pos = Cube::faceletIndexFor(s.dir, s.pos.x, s.pos.y, s.pos.z);
+    return s.dir * 9 + pos;
+}
+
+static int coord(const Vec3i& v, int axis) {
+    return axis == 0 ? v.x : (axis == 1 ? v.y : v.z);
+}
+
+static void moveShape(Move m, int& axis, int& layer, int& turns) {
+    static constexpr int axes[6] = {1, 1, 0, 0, 2, 2};
+    static constexpr int layers[6] = {1, -1, -1, 1, 1, -1};
+    static constexpr int cw[6] = {-1, 1, 1, -1, -1, 1};
+    int i = static_cast<int>(m);
+    int face = i / 3;
+    int type = i % 3;
+    axis = axes[face];
+    layer = layers[face];
+    turns = type == 2 ? 2 : (type == 0 ? cw[face] : -cw[face]);
+}
+}
+
+void Cube::applyMoveRaw(Move m) {
+    if (m == Move::COUNT) return;
+
+    int axis = 0, layer = 0, turns = 0;
+    moveShape(m, axis, layer, turns);
+    int sign = turns < 0 ? -1 : 1;
+    int reps = turns < 0 ? -turns : turns;
+
+    std::array<Color, 54> next = state_;
+    bool written[54] = {};
+    for (int i = 0; i < 54; i++) {
+        Sticker s = stickerAt(i);
+        if (coord(s.pos, axis) == layer) {
+            for (int j = 0; j < reps; j++) {
+                s.pos = rot90(s.pos, axis, sign);
+                s.dir = vecDir(rot90(dirVec(s.dir), axis, sign));
+            }
+        }
+        int out = stickerIndex(s);
+        assert(out >= 0 && out < 54);
+        next[out] = state_[i];
+        written[out] = true;
     }
+    for (bool ok : written) assert(ok);
+    state_ = next;
 }
 
 void Cube::scramble(int numMoves) {
@@ -291,7 +339,7 @@ const char* Cube::colorName(Color c) {
 }
 
 // ============================================================
-// Kociemba solver coordinate extraction
+// Cubie extraction for validation
 // ============================================================
 
 // Corner cubies defined by their facelets
@@ -393,127 +441,4 @@ int Cube::getEdgeOrientation(int pos) const {
     int ep = getEdgePermutation(pos);
     if (ep < 0) return 0;
     return (c0 == edgeColors[ep][0]) ? 0 : 1;
-}
-
-int Cube::cornerOrientationCoord() const {
-    int coord = 0;
-    for (int i = 0; i < 7; i++) {
-        coord = coord * 3 + getCornerOrientation(i);
-    }
-    return coord; // 0..2186
-}
-
-int Cube::edgeOrientationCoord() const {
-    int coord = 0;
-    for (int i = 0; i < 11; i++) {
-        coord = coord * 2 + getEdgeOrientation(i);
-    }
-    return coord; // 0..2047
-}
-
-int Cube::udSliceCoord() const {
-    // Which 4 of the 12 edge positions contain UD-slice edges (FR, FL, BL, BR = indices 8-11)
-    bool isSlice[12];
-    for (int i = 0; i < 12; i++) {
-        int ep = getEdgePermutation(i);
-        isSlice[i] = (ep >= 8);
-    }
-
-    // Encode as a combination number in the range [0..494] (12 choose 4 - 1).
-    // Convention: solved cube (slice edges in positions 8..11) => 0.
-    auto binom = [](int n, int k) -> int {
-        if (k < 0 || k > n) return 0;
-        if (k == 0 || k == n) return 1;
-        if (k > n - k) k = n - k;
-        int res = 1;
-        for (int i = 1; i <= k; i++) {
-            res = res * (n - k + i) / i;
-        }
-        return res;
-    };
-
-    int coord = 0;
-    int k = 4; // slice edges remaining to place while scanning from high to low
-    for (int i = 11; i >= 0; i--) {
-        if (isSlice[i]) {
-            k--;
-        } else if (k > 0) {
-            coord += binom(i, k);
-        }
-    }
-
-    return coord; // 0..494
-}
-
-int Cube::cornerPermutationCoord() const {
-    int perm[8];
-    for (int i = 0; i < 8; i++) perm[i] = getCornerPermutation(i);
-
-    int coord = 0;
-    for (int i = 7; i > 0; i--) {
-        int s = 0;
-        for (int j = i + 1; j < 8; j++) {
-            // count inversions - but we need Lehmer code
-        }
-        // Lehmer code
-        s = 0;
-        for (int j = 0; j < i; j++) {
-            if (perm[j] > perm[i]) s++;
-        }
-        // Wait, let me use the standard factorial number system
-        coord = 0; // restart
-        break;
-    }
-
-    // Factorial number system (Lehmer code)
-    coord = 0;
-    for (int i = 0; i < 8; i++) {
-        int cnt = 0;
-        for (int j = i + 1; j < 8; j++) {
-            if (perm[j] < perm[i]) cnt++;
-        }
-        int fact = 1;
-        for (int k = 1; k <= 7 - i; k++) fact *= k;
-        coord += cnt * fact;
-    }
-    return coord; // 0..40319
-}
-
-int Cube::phase2EdgePermutationCoord() const {
-    // Permutation of the 8 non-slice edges (UR, UF, UL, UB, DR, DF, DL, DB) = edges 0..7
-    int perm[8];
-    for (int i = 0; i < 8; i++) perm[i] = getEdgePermutation(i);
-
-    int coord = 0;
-    for (int i = 0; i < 8; i++) {
-        int cnt = 0;
-        for (int j = i + 1; j < 8; j++) {
-            if (perm[j] < perm[i]) cnt++;
-        }
-        int fact = 1;
-        for (int k = 1; k <= 7 - i; k++) fact *= k;
-        coord += cnt * fact;
-    }
-    return coord; // 0..40319
-}
-
-int Cube::udSlicePermutationCoord() const {
-    // Permutation of the 4 UD-slice edges among themselves
-    // Find where slice edges 8,9,10,11 ended up
-    int slicePos[4]; // which edge is at positions 8,9,10,11
-    for (int i = 0; i < 4; i++) {
-        slicePos[i] = getEdgePermutation(i + 8) - 8;
-    }
-
-    int coord = 0;
-    for (int i = 0; i < 4; i++) {
-        int cnt = 0;
-        for (int j = i + 1; j < 4; j++) {
-            if (slicePos[j] < slicePos[i]) cnt++;
-        }
-        int fact = 1;
-        for (int k = 1; k <= 3 - i; k++) fact *= k;
-        coord += cnt * fact;
-    }
-    return coord; // 0..23
 }

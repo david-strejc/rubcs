@@ -1,9 +1,11 @@
 # rubcs
 
-Simple 3D Rubik's Cube viewer with mouse/keyboard controls and an auto-solver.
+Simple 3D Rubik's Cube viewer with mouse/keyboard controls and an instant rewind solver.
 
-The solver is a Kociemba-style two-phase solver. The first solve builds move/pruning
-tables once per process; after that, solves should be fast.
+The solver records legal moves as they happen, braid-normalizes opposite faces that
+commute, compresses same-face turns, and solves by replaying the inverse trail.
+Imported raw states are still validated, but only states reached through the app's
+move API have a rewind trail.
 
 ## Build
 
@@ -37,4 +39,3 @@ ctest --test-dir build --output-on-failure
 - LMB drag: rotate face
 - Scroll: zoom
 - `Esc` quit
-

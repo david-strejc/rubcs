@@ -9,7 +9,7 @@ int main() {
     std::cout << "  U/D/L/R/F/B     - rotate face clockwise\n";
     std::cout << "  Shift + key      - rotate face counter-clockwise\n";
     std::cout << "  Space            - scramble\n";
-    std::cout << "  Enter            - auto-solve (Kociemba 2-phase)\n";
+    std::cout << "  Enter            - auto-solve (rewind trail)\n";
     std::cout << "  Backspace        - reset\n";
     std::cout << "  Right mouse drag - rotate camera\n";
     std::cout << "  Left mouse drag  - rotate face (drag on cube)\n";

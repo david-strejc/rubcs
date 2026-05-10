@@ -985,7 +985,7 @@ void Renderer::run(Cube& cube, std::function<std::vector<Move>(Cube&, std::atomi
                 } else if (solveCancel_.load(std::memory_order_relaxed)) {
                     statusText_ = "Solve canceled";
                 } else if (solution.empty()) {
-                    statusText_ = cube.isSolved() ? "Solved" : "No solution found (depth limit)";
+                    statusText_ = cube.isSolved() ? "Solved" : "No rewind trail available";
                 } else {
                     for (auto m : solution) moveQueue_.push(m);
                     statusText_ = "Solution: " + std::to_string(solution.size()) + " moves";
@@ -994,14 +994,9 @@ void Renderer::run(Cube& cube, std::function<std::vector<Move>(Cube&, std::atomi
                 double elapsed = glfwGetTime() - solveStartTime_;
                 uint64_t nodes = solveProgress_.nodes.load(std::memory_order_relaxed);
                 int depth = solveProgress_.depth.load(std::memory_order_relaxed);
-                if (depth < 0) {
-                    statusText_ = "Building solver tables... " + std::to_string((int)elapsed) +
-                                  "s (click SOLVE to cancel)";
-                } else {
-                    statusText_ = "Solving... depth " + std::to_string(depth) +
-                                  "  nodes " + std::to_string((unsigned long long)nodes) +
-                                  "  " + std::to_string((int)elapsed) + "s (click SOLVE to cancel)";
-                }
+                statusText_ = "Rewinding... moves " + std::to_string(depth) +
+                              "  trail " + std::to_string((unsigned long long)nodes) +
+                              "  " + std::to_string((int)elapsed) + "s (click SOLVE to cancel)";
             }
         } else if (cube.isSolved() && moveQueue_.empty() && currentAnim_.move == static_cast<Move>(255)) {
             statusText_ = "SOLVED!";

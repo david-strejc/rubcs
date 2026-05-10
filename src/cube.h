@@ -41,8 +41,8 @@ public:
     Color getFacelet(int face, int index) const { return state_[face * 9 + index]; }
     const std::array<Color, 54>& getState() const { return state_; }
 
-    // For solver - get/set raw state
-    void setState(const std::array<Color, 54>& s) { state_ = s; }
+    void setState(const std::array<Color, 54>& s);
+    std::vector<Move> rewindSolution() const;
 
     static Move inverseMove(Move m);
     static std::string moveToString(Move m);
@@ -61,20 +61,10 @@ public:
     int getCornerPermutation(int corner) const;
     int getEdgePermutation(int edge) const;
 
-    // Coordinate extraction for Kociemba solver
-    int cornerOrientationCoord() const;
-    int edgeOrientationCoord() const;
-    int udSliceCoord() const;
-    int cornerPermutationCoord() const;
-    int phase2EdgePermutationCoord() const;
-    int udSlicePermutationCoord() const;
-
 private:
     std::array<Color, 54> state_;  // 6 faces * 9 facelets
+    std::vector<Move> history_;
 
-    void rotateFaceCW(int face);
-    void rotateFaceCCW(int face);
-
-    // Cycle helpers
-    void cycle4(int a, int b, int c, int d);
+    void applyMoveRaw(Move m);
+    void remember(Move m);
 };

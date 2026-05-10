@@ -369,18 +369,6 @@ static void test_corner_edge_validity_invariants(TestCtx& ctx) {
     EXPECT_EQ(ctx, eoSum, 0);
 }
 
-static void test_coordinate_functions_solved(TestCtx& ctx) {
-    Cube c;
-    c.reset();
-
-    EXPECT_EQ(ctx, c.cornerOrientationCoord(), 0);
-    EXPECT_EQ(ctx, c.edgeOrientationCoord(), 0);
-    EXPECT_EQ(ctx, c.udSliceCoord(), 0);
-    EXPECT_EQ(ctx, c.cornerPermutationCoord(), 0);
-    EXPECT_EQ(ctx, c.phase2EdgePermutationCoord(), 0);
-    EXPECT_EQ(ctx, c.udSlicePermutationCoord(), 0);
-}
-
 static void test_isSolvable(TestCtx& ctx) {
     {
         Cube c;
@@ -409,61 +397,95 @@ static void test_isSolvable(TestCtx& ctx) {
     }
 }
 
-static void test_solver_solves_small_scrambles(TestCtx& ctx) {
-    Solver solver;
-
-    const std::vector<std::vector<Move>> scrambles = {
-        {Move::U, Move::R, Move::F, Move::Up},
-        {Move::L, Move::D, Move::B, Move::R, Move::U2},
-        {Move::F, Move::R, Move::U, Move::Rp, Move::Up, Move::Fp},
-    };
-
-    for (const auto& scr : scrambles) {
-        Cube cube;
-        cube.reset();
-        for (auto m : scr) cube.applyMove(m);
-
-        Cube beforeSolve = cube;
-        auto solution = solver.solve(cube);
-
-        // Solver should not mutate input cube.
-        EXPECT_TRUE(ctx, cube.getState() == beforeSolve.getState());
-
-        Cube work = cube;
-        for (auto m : solution) work.applyMove(m);
-        EXPECT_TRUE(ctx, work.isSolved());
-    }
+static void applyAll(Cube& cube, const std::vector<Move>& moves) {
+    for (auto m : moves) cube.applyMove(m);
 }
 
-static void test_solver_solves_20_move_scramble(TestCtx& ctx) {
+static void expect_solver_rewinds(TestCtx& ctx, const std::vector<Move>& scramble) {
     Solver solver;
-
-    // Deterministic 20-move scramble (face-turn metric).
-    const std::vector<Move> scramble = {
-        Move::R,  Move::U,  Move::Rp, Move::Up,
-        Move::F2, Move::L2, Move::D,  Move::B2,
-        Move::U2, Move::R2, Move::Fp, Move::L,
-        Move::Dp, Move::B,  Move::U,  Move::R,
-        Move::Fp, Move::D2, Move::Lp, Move::B2,
-    };
-
     Cube cube;
     cube.reset();
-    for (auto m : scramble) cube.applyMove(m);
-    EXPECT_TRUE(ctx, cube.isSolvable());
+    applyAll(cube, scramble);
 
     Cube beforeSolve = cube;
     auto solution = solver.solve(cube);
 
-    // Solver should not mutate input cube.
     EXPECT_TRUE(ctx, cube.getState() == beforeSolve.getState());
-
-    // Kociemba two-phase typically guarantees <= 31 moves in FTM.
-    EXPECT_TRUE(ctx, (int)solution.size() <= 31);
+    EXPECT_TRUE(ctx, solution.size() <= scramble.size());
 
     Cube work = cube;
-    for (auto m : solution) work.applyMove(m);
+    applyAll(work, solution);
     EXPECT_TRUE(ctx, work.isSolved());
+    EXPECT_TRUE(ctx, work.rewindSolution().empty());
+}
+
+static void test_rewind_history_compression(TestCtx& ctx) {
+    const std::vector<std::pair<std::vector<Move>, size_t>> scrambles = {
+        {{Move::U, Move::Up}, 0},
+        {{Move::R, Move::R, Move::R, Move::R}, 0},
+        {{Move::F, Move::F}, 1},
+        {{Move::L, Move::Lp, Move::D, Move::Dp}, 0},
+        {{Move::B2, Move::Bp, Move::Bp}, 0},
+        {{Move::U, Move::D, Move::Up}, 1},
+        {{Move::D, Move::U, Move::Dp}, 1},
+        {{Move::L, Move::R, Move::Lp, Move::Rp}, 0},
+        {{Move::F, Move::B, Move::F, Move::Bp}, 1},
+    };
+
+    for (const auto& item : scrambles) {
+        Cube cube;
+        cube.reset();
+        const auto& scr = item.first;
+        applyAll(cube, scr);
+        auto solution = cube.rewindSolution();
+        EXPECT_EQ(ctx, solution.size(), item.second);
+        Cube work = cube;
+        applyAll(work, solution);
+        EXPECT_TRUE(ctx, work.isSolved());
+    }
+}
+
+static void test_solver_solves_each_move(TestCtx& ctx) {
+    for (int i = 0; i < static_cast<int>(Move::COUNT); i++) {
+        expect_solver_rewinds(ctx, {static_cast<Move>(i)});
+    }
+}
+
+static void test_solver_solves_scrambles(TestCtx& ctx) {
+    const std::vector<std::vector<Move>> scrambles = {
+        {Move::U, Move::R, Move::F, Move::Up},
+        {Move::L, Move::D, Move::B, Move::R, Move::U2},
+        {Move::F, Move::R, Move::U, Move::Rp, Move::Up, Move::Fp},
+        {
+            Move::R,  Move::U,  Move::Rp, Move::Up,
+            Move::F2, Move::L2, Move::D,  Move::B2,
+            Move::U2, Move::R2, Move::Fp, Move::L,
+            Move::Dp, Move::B,  Move::U,  Move::R,
+            Move::Fp, Move::D2, Move::Lp, Move::B2,
+        },
+        {
+            Move::U, Move::D, Move::L, Move::R, Move::F, Move::B,
+            Move::Up, Move::Dp, Move::Lp, Move::Rp, Move::Fp, Move::Bp,
+            Move::U2, Move::D2, Move::L2, Move::R2, Move::F2, Move::B2,
+        },
+    };
+
+    for (const auto& scramble : scrambles) {
+        expect_solver_rewinds(ctx, scramble);
+    }
+}
+
+static void test_solver_respects_missing_history(TestCtx& ctx) {
+    Solver solver;
+    Cube source;
+    source.reset();
+    applyAll(source, {Move::R, Move::U, Move::Rp, Move::Up});
+
+    Cube orphan;
+    orphan.setState(source.getState());
+    EXPECT_TRUE(ctx, orphan.isSolvable());
+    EXPECT_TRUE(ctx, !orphan.isSolved());
+    EXPECT_TRUE(ctx, solver.solve(orphan).empty());
 }
 
 static void test_solver_solved_is_empty(TestCtx& ctx) {
@@ -483,11 +505,12 @@ int main() {
     test_inverse_and_identity(ctx);
     test_color_count_invariant(ctx);
     test_corner_edge_validity_invariants(ctx);
-    test_coordinate_functions_solved(ctx);
     test_isSolvable(ctx);
     test_solver_solved_is_empty(ctx);
-    test_solver_solves_small_scrambles(ctx);
-    test_solver_solves_20_move_scramble(ctx);
+    test_rewind_history_compression(ctx);
+    test_solver_solves_each_move(ctx);
+    test_solver_solves_scrambles(ctx);
+    test_solver_respects_missing_history(ctx);
 
     std::cerr << "Assertions: " << ctx.assertions << ", Failures: " << ctx.failures << "\n";
     return (ctx.failures == 0) ? 0 : 1;

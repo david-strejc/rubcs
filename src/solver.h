@@ -13,7 +13,4 @@ class Solver {
 public:
     std::vector<Move> solve(Cube& cube);
     std::vector<Move> solve(Cube& cube, std::atomic_bool* cancel, SolverProgress* progress = nullptr);
-
-private:
-    static bool moveAllowed(int move, int lastMove);
 };

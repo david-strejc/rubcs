@@ -1,5 +1,16 @@
 # TODO
 
+## Backlog
+<!-- Future work, ideas, improvements, discovered debt. Enough context for any agent to pick it up cold. -->
+
+## In Progress
+<!-- Actively worked on RIGHT NOW. Max 3 items. Tag owner. -->
+
+## Blocked
+<!-- Cannot proceed. State WHY and WHAT unblocks. -->
+
+## Done
+<!-- Completed this session. Only move here when FULLY done per Prime Directive. -->
 - [x] Reproduce Rubik's Cube rotation bug (colors/stickers appear to swap randomly during/after rotation).
 - [x] Identify root cause in cube state vs render/animation sync.
 - [x] Fix rotation logic so sticker colors move consistently like a real cube (piece permutation + orientation).
@@ -16,4 +27,5 @@
 - [x] Update/extend solver tests for Kociemba (solve 20-move scramble, <=31 moves).
 - [x] Polish Solve UI text for table-building stage (avoid showing negative depth).
 - [x] Create public GitHub repository and push code (`gh repo create ... --public --push`).
-- [ ] Verify manually (rotate all faces, repeated sequences) and update docs if needed.
+- [x] Compile and start rubcs, then confirm the app launches for manual verification.
+- [x] Rewrite solver/core with geometric sticker turns plus braid-normalized rewind solving, update UI/docs wording, and add regression tests.
