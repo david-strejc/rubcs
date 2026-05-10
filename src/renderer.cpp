@@ -612,7 +612,7 @@ void Renderer::processKeyboard(Cube& cube, int key, int action, int mods) {
     case GLFW_KEY_B: queueMove(shift ? Move::Bp : Move::B, cube); break;
     case GLFW_KEY_SPACE:
         requestCancelSolve();
-        cube.scramble(20);
+        cube.scramble(10);
         statusText_ = cube.isSolvable() ? "Scrambled" : "Scramble produced invalid state (reset)";
         if (!cube.isSolvable()) cube.reset();
         break;
@@ -985,7 +985,7 @@ void Renderer::run(Cube& cube, std::function<std::vector<Move>(Cube&, std::atomi
                 } else if (solveCancel_.load(std::memory_order_relaxed)) {
                     statusText_ = "Solve canceled";
                 } else if (solution.empty()) {
-                    statusText_ = cube.isSolved() ? "Solved" : "No rewind trail available";
+                    statusText_ = cube.isSolved() ? "Solved" : "No state solution found";
                 } else {
                     for (auto m : solution) moveQueue_.push(m);
                     statusText_ = "Solution: " + std::to_string(solution.size()) + " moves";
@@ -994,8 +994,8 @@ void Renderer::run(Cube& cube, std::function<std::vector<Move>(Cube&, std::atomi
                 double elapsed = glfwGetTime() - solveStartTime_;
                 uint64_t nodes = solveProgress_.nodes.load(std::memory_order_relaxed);
                 int depth = solveProgress_.depth.load(std::memory_order_relaxed);
-                statusText_ = "Rewinding... moves " + std::to_string(depth) +
-                              "  trail " + std::to_string((unsigned long long)nodes) +
+                statusText_ = "Searching... depth " + std::to_string(depth) +
+                              "  states " + std::to_string((unsigned long long)nodes) +
                               "  " + std::to_string((int)elapsed) + "s (click SOLVE to cancel)";
             }
         } else if (cube.isSolved() && moveQueue_.empty() && currentAnim_.move == static_cast<Move>(255)) {

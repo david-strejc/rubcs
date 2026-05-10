@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
-#include <cstddef>
 
 // Facelet indices: face * 9 + position
 // Position layout per face:
@@ -74,58 +73,14 @@ void Cube::reset() {
             state_[f * 9 + i] = kFaceColor[f];
         }
     }
-    history_.clear();
 }
 
 void Cube::setState(const std::array<Color, 54>& s) {
     state_ = s;
-    history_.clear();
-}
-
-std::vector<Move> Cube::rewindSolution() const {
-    std::vector<Move> out;
-    out.reserve(history_.size());
-    for (auto it = history_.rbegin(); it != history_.rend(); ++it) {
-        out.push_back(inverseMove(*it));
-    }
-    return out;
-}
-
-void Cube::remember(Move m) {
-    int move = static_cast<int>(m);
-    if (move < 0 || move >= static_cast<int>(Move::COUNT)) return;
-
-    auto faceOf = [](Move x) { return static_cast<int>(x) / 3; };
-    auto turns = [](Move x) {
-        int t = static_cast<int>(x) % 3;
-        return t == 0 ? 1 : (t == 1 ? 3 : 2);
-    };
-    auto fromTurns = [](int face, int turns) {
-        int type = turns == 1 ? 0 : (turns == 3 ? 1 : 2);
-        return static_cast<Move>(face * 3 + type);
-    };
-    auto commute = [](int a, int b) {
-        return a != b && a / 2 == b / 2;
-    };
-
-    int face = faceOf(m);
-    auto pos = history_.size();
-    while (pos > 0 && commute(faceOf(history_[pos - 1]), face)) {
-        pos--;
-    }
-
-    if (pos > 0 && faceOf(history_[pos - 1]) == face) {
-        int merged = (turns(history_[pos - 1]) + turns(m)) & 3;
-        if (merged == 0) history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(pos - 1));
-        else history_[pos - 1] = fromTurns(face, merged);
-        return;
-    }
-    history_.insert(history_.begin() + static_cast<std::ptrdiff_t>(pos), m);
 }
 
 void Cube::applyMove(Move m) {
     applyMoveRaw(m);
-    remember(m);
 }
 
 namespace {

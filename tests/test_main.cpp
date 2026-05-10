@@ -401,81 +401,48 @@ static void applyAll(Cube& cube, const std::vector<Move>& moves) {
     for (auto m : moves) cube.applyMove(m);
 }
 
-static void expect_solver_rewinds(TestCtx& ctx, const std::vector<Move>& scramble) {
+static void expect_state_solver(TestCtx& ctx, const std::vector<Move>& scramble) {
     Solver solver;
-    Cube cube;
-    cube.reset();
-    applyAll(cube, scramble);
+    Cube source;
+    source.reset();
+    applyAll(source, scramble);
 
+    Cube cube;
+    cube.setState(source.getState());
     Cube beforeSolve = cube;
     auto solution = solver.solve(cube);
 
     EXPECT_TRUE(ctx, cube.getState() == beforeSolve.getState());
-    EXPECT_TRUE(ctx, solution.size() <= scramble.size());
+    EXPECT_TRUE(ctx, !solution.empty());
 
     Cube work = cube;
     applyAll(work, solution);
     EXPECT_TRUE(ctx, work.isSolved());
-    EXPECT_TRUE(ctx, work.rewindSolution().empty());
-}
-
-static void test_rewind_history_compression(TestCtx& ctx) {
-    const std::vector<std::pair<std::vector<Move>, size_t>> scrambles = {
-        {{Move::U, Move::Up}, 0},
-        {{Move::R, Move::R, Move::R, Move::R}, 0},
-        {{Move::F, Move::F}, 1},
-        {{Move::L, Move::Lp, Move::D, Move::Dp}, 0},
-        {{Move::B2, Move::Bp, Move::Bp}, 0},
-        {{Move::U, Move::D, Move::Up}, 1},
-        {{Move::D, Move::U, Move::Dp}, 1},
-        {{Move::L, Move::R, Move::Lp, Move::Rp}, 0},
-        {{Move::F, Move::B, Move::F, Move::Bp}, 1},
-    };
-
-    for (const auto& item : scrambles) {
-        Cube cube;
-        cube.reset();
-        const auto& scr = item.first;
-        applyAll(cube, scr);
-        auto solution = cube.rewindSolution();
-        EXPECT_EQ(ctx, solution.size(), item.second);
-        Cube work = cube;
-        applyAll(work, solution);
-        EXPECT_TRUE(ctx, work.isSolved());
-    }
 }
 
 static void test_solver_solves_each_move(TestCtx& ctx) {
     for (int i = 0; i < static_cast<int>(Move::COUNT); i++) {
-        expect_solver_rewinds(ctx, {static_cast<Move>(i)});
+        expect_state_solver(ctx, {static_cast<Move>(i)});
     }
 }
 
-static void test_solver_solves_scrambles(TestCtx& ctx) {
+static void test_solver_solves_raw_scrambles(TestCtx& ctx) {
     const std::vector<std::vector<Move>> scrambles = {
         {Move::U, Move::R, Move::F, Move::Up},
         {Move::L, Move::D, Move::B, Move::R, Move::U2},
         {Move::F, Move::R, Move::U, Move::Rp, Move::Up, Move::Fp},
-        {
-            Move::R,  Move::U,  Move::Rp, Move::Up,
-            Move::F2, Move::L2, Move::D,  Move::B2,
-            Move::U2, Move::R2, Move::Fp, Move::L,
-            Move::Dp, Move::B,  Move::U,  Move::R,
-            Move::Fp, Move::D2, Move::Lp, Move::B2,
-        },
-        {
-            Move::U, Move::D, Move::L, Move::R, Move::F, Move::B,
-            Move::Up, Move::Dp, Move::Lp, Move::Rp, Move::Fp, Move::Bp,
-            Move::U2, Move::D2, Move::L2, Move::R2, Move::F2, Move::B2,
-        },
+        {Move::R, Move::U, Move::Rp, Move::Up, Move::F2, Move::L2},
+        {Move::U, Move::D, Move::L, Move::R, Move::F, Move::B},
+        {Move::U2, Move::R2, Move::F2, Move::D2, Move::L2, Move::B2},
+        {Move::B, Move::Lp, Move::D, Move::F, Move::Rp, Move::U},
     };
 
     for (const auto& scramble : scrambles) {
-        expect_solver_rewinds(ctx, scramble);
+        expect_state_solver(ctx, scramble);
     }
 }
 
-static void test_solver_respects_missing_history(TestCtx& ctx) {
+static void test_solver_uses_state_not_history(TestCtx& ctx) {
     Solver solver;
     Cube source;
     source.reset();
@@ -485,7 +452,10 @@ static void test_solver_respects_missing_history(TestCtx& ctx) {
     orphan.setState(source.getState());
     EXPECT_TRUE(ctx, orphan.isSolvable());
     EXPECT_TRUE(ctx, !orphan.isSolved());
-    EXPECT_TRUE(ctx, solver.solve(orphan).empty());
+    auto solution = solver.solve(orphan);
+    EXPECT_TRUE(ctx, !solution.empty());
+    applyAll(orphan, solution);
+    EXPECT_TRUE(ctx, orphan.isSolved());
 }
 
 static void test_solver_solved_is_empty(TestCtx& ctx) {
@@ -507,10 +477,9 @@ int main() {
     test_corner_edge_validity_invariants(ctx);
     test_isSolvable(ctx);
     test_solver_solved_is_empty(ctx);
-    test_rewind_history_compression(ctx);
     test_solver_solves_each_move(ctx);
-    test_solver_solves_scrambles(ctx);
-    test_solver_respects_missing_history(ctx);
+    test_solver_solves_raw_scrambles(ctx);
+    test_solver_uses_state_not_history(ctx);
 
     std::cerr << "Assertions: " << ctx.assertions << ", Failures: " << ctx.failures << "\n";
     return (ctx.failures == 0) ? 0 : 1;

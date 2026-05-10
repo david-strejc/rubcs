@@ -1,11 +1,10 @@
 # rubcs
 
-Simple 3D Rubik's Cube viewer with mouse/keyboard controls and an instant rewind solver.
+Simple 3D Rubik's Cube viewer with mouse/keyboard controls and a state-based solver.
 
-The solver records legal moves as they happen, braid-normalizes opposite faces that
-commute, compresses same-face turns, and solves by replaying the inverse trail.
-Imported raw states are still validated, but only states reached through the app's
-move API have a rewind trail.
+The solver reads the cube state directly. It expands a frontier from the current
+cube and another from the solved cube, then stitches the two move paths when their
+states meet. It does not use move recording or replay history.
 
 ## Build
 

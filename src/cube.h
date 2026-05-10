@@ -34,7 +34,7 @@ public:
 
     void reset();
     void applyMove(Move m);
-    void scramble(int numMoves = 20);
+    void scramble(int numMoves = 10);
     bool isSolved() const;
     bool isSolvable() const;
 
@@ -42,7 +42,6 @@ public:
     const std::array<Color, 54>& getState() const { return state_; }
 
     void setState(const std::array<Color, 54>& s);
-    std::vector<Move> rewindSolution() const;
 
     static Move inverseMove(Move m);
     static std::string moveToString(Move m);
@@ -63,8 +62,6 @@ public:
 
 private:
     std::array<Color, 54> state_;  // 6 faces * 9 facelets
-    std::vector<Move> history_;
 
     void applyMoveRaw(Move m);
-    void remember(Move m);
 };

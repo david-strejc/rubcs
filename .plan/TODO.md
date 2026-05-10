@@ -29,3 +29,4 @@
 - [x] Create public GitHub repository and push code (`gh repo create ... --public --push`).
 - [x] Compile and start rubcs, then confirm the app launches for manual verification.
 - [x] Rewrite solver/core with geometric sticker turns plus braid-normalized rewind solving, update UI/docs wording, and add regression tests.
+- [x] Replace rewind-only solver with a real state-based solver that does not use recorded move history, and extend tests to prove orphan/raw states solve.
